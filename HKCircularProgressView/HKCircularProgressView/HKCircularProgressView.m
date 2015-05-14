@@ -1,5 +1,5 @@
 //
-//  HKCircularProgressView.m
+//  HKCircularProgressLayer.m
 //  HKCircularProgressView
 //
 //  Copyright (c) 2012-2013, Panos Baroudjian.
@@ -27,456 +27,487 @@
 //  ARISING IN ANY WAY OUT OF THE USE OF THIS SOFTWARE, EVEN IF ADVISED OF THE
 //  POSSIBILITY OF SUCH DAMAGE.
 
-#import "HKCircularProgressView.h"
+#import "HKCircularProgressLayer.h"
 
-@interface HKCircularProgressView ()
+#define TWO_PI M_PI * 2.0f
+
+static const CGFloat k2Pi = TWO_PI;
+
+@implementation HKCircularProgressEndPointFlat
+
+- (CGFloat)startPointAngleWithCenter:(CGPoint)center
+                              radius:(CGFloat)radius
+                         innerRadius:(CGFloat)innerRadius
+                               angle:(CGFloat)angle
+{
+    return angle;
+}
+
+- (CGFloat)endPointAngleWithCenter:(CGPoint)center
+                            radius:(CGFloat)radius
+                       innerRadius:(CGFloat)innerRadius
+                             angle:(CGFloat)angle
+{
+    return angle;
+}
+
+- (void)drawStartPointInContext:(CGContextRef)ctx
+                     withCenter:(CGPoint)center
+                      andRadius:(CGFloat)radius
+                 andInnerRadius:(CGFloat)innerRadius
+                        atAngle:(CGFloat)angle
+{
+}
+
+- (void)drawEndPointInContext:(CGContextRef)ctx
+                   withCenter:(CGPoint)center
+                    andRadius:(CGFloat)radius
+               andInnerRadius:(CGFloat)innerRadius
+                      atAngle:(CGFloat)angle
+{
+}
+
 @end
 
-@implementation HKCircularProgressView
-
-- (id)initWithFrame:(CGRect)frame
+static void getTipPointAndTransformForEndPoint(CGPoint center,
+                                               CGFloat radius,
+                                               CGFloat innerRadius,
+                                               CGFloat angle,
+                                               BOOL clockwise,
+                                               CGPoint *outPoint,
+                                               CGAffineTransform *outTransform)
 {
-    self = [super initWithFrame:frame];
+    CGFloat trackWidth = radius - innerRadius;
+    CGFloat halfTrackWidth = trackWidth * .5;
+    CGFloat trackCenterRadius = innerRadius + halfTrackWidth;
+    *outTransform = CGAffineTransformMakeRotation(angle);
+    outTransform->tx = center.x;
+    outTransform->ty = center.y;
+    if (clockwise)
+        halfTrackWidth *= -1;
+    *outPoint = CGPointMake(trackCenterRadius, halfTrackWidth);
+    *outPoint = CGPointApplyAffineTransform(*outPoint, *outTransform);
+}
+
+@implementation HKCircularProgressEndPointSpike
+
+- (CGFloat)startPointAngleWithCenter:(CGPoint)center
+                              radius:(CGFloat)radius
+                         innerRadius:(CGFloat)innerRadius
+                               angle:(CGFloat)angle
+{
+    return angle;
+}
+
+- (CGFloat)endPointAngleWithCenter:(CGPoint)center
+                            radius:(CGFloat)radius
+                       innerRadius:(CGFloat)innerRadius
+                             angle:(CGFloat)angle
+{
+    return angle;
+}
+
+- (void)drawStartPointInContext:(CGContextRef)ctx
+                     withCenter:(CGPoint)center
+                      andRadius:(CGFloat)radius
+                 andInnerRadius:(CGFloat)innerRadius
+                        atAngle:(CGFloat)angle
+{
+    CGPoint tipPoint = CGPointZero;
+    CGAffineTransform transform = CGAffineTransformIdentity;
+    getTipPointAndTransformForEndPoint(center, radius, innerRadius, angle, YES, &tipPoint, &transform);
+    CGContextAddLineToPoint(ctx, tipPoint.x, tipPoint.y);
+    CGFloat x = center.x + innerRadius * cos(angle);
+    CGFloat y = center.y + innerRadius * sin(angle);
+    CGContextAddLineToPoint(ctx, x, y);
+}
+
+- (void)drawEndPointInContext:(CGContextRef)ctx
+                   withCenter:(CGPoint)center
+                    andRadius:(CGFloat)radius
+               andInnerRadius:(CGFloat)innerRadius
+                      atAngle:(CGFloat)angle
+{
+    CGPoint tipPoint = CGPointZero;
+    CGAffineTransform transform = CGAffineTransformIdentity;
+    getTipPointAndTransformForEndPoint(center, radius, innerRadius, angle, NO, &tipPoint, &transform);
+    CGContextAddLineToPoint(ctx, tipPoint.x, tipPoint.y);
+    CGFloat x = center.x + innerRadius * cos(angle);
+    CGFloat y = center.y + innerRadius * sin(angle);
+    CGContextAddLineToPoint(ctx, x, y);
+}
+
+@end
+
+@implementation HKCircularProgressEndPointRound
+
+- (CGFloat)startPointAngleWithCenter:(CGPoint)center
+                              radius:(CGFloat)radius
+                         innerRadius:(CGFloat)innerRadius
+                               angle:(CGFloat)angle
+{
+    return angle;
+}
+
+- (CGFloat)endPointAngleWithCenter:(CGPoint)center
+                            radius:(CGFloat)radius
+                       innerRadius:(CGFloat)innerRadius
+                             angle:(CGFloat)angle
+{
+    return angle;
+}
+
+- (void)drawStartPointInContext:(CGContextRef)ctx
+                     withCenter:(CGPoint)center
+                      andRadius:(CGFloat)radius
+                 andInnerRadius:(CGFloat)innerRadius
+                        atAngle:(CGFloat)angle
+{
+    CGPoint tipPoint = CGPointZero;
+    CGAffineTransform transform = CGAffineTransformIdentity;
+    getTipPointAndTransformForEndPoint(center, radius, innerRadius, angle, YES, &tipPoint, &transform);
+    CGFloat x = center.x + innerRadius * cos(angle);
+    CGFloat y = center.y + innerRadius * sin(angle);
+    CGContextAddQuadCurveToPoint(ctx, tipPoint.x, tipPoint.y, x, y);
+}
+
+- (void)drawEndPointInContext:(CGContextRef)ctx
+                   withCenter:(CGPoint)center
+                    andRadius:(CGFloat)radius
+               andInnerRadius:(CGFloat)innerRadius
+                      atAngle:(CGFloat)angle
+{
+    CGPoint tipPoint = CGPointZero;
+    CGAffineTransform transform = CGAffineTransformIdentity;
+    getTipPointAndTransformForEndPoint(center, radius, innerRadius, angle, NO, &tipPoint, &transform);
+    CGFloat x = center.x + innerRadius * cos(angle);
+    CGFloat y = center.y + innerRadius * sin(angle);
+    CGContextAddQuadCurveToPoint(ctx, tipPoint.x, tipPoint.y, x, y);
+}
+
+@end
+
+typedef CGFloat (^HKConcentricProgressionFunction)(CGFloat, CGFloat);
+
+@interface HKCircularProgressLayer ()
+
+@end
+
+@implementation HKCircularProgressLayer
+
+- (id)initWithLayer:(id)layer
+{
+    self = [super initWithLayer:layer];
     if (self)
     {
-        [self _defaultInit];
-    }
-
-    return self;
-}
-
-- (id)initWithCoder:(NSCoder *)aDecoder
-{
-    self = [super initWithCoder:aDecoder];
-    if (self)
-    {
-        [self _defaultInit];
-    }
-
-    return self;
-}
-
-- (id)init
-{
-    self = [super init];
-    if (self)
-    {
-        [self _defaultInit];
-    }
-
-    return self;
-}
-
-+ (Class)layerClass
-{
-    return [HKCircularProgressLayer class];
-}
-
-- (void)_defaultInit
-{
-    self.backgroundColor = [UIColor clearColor];
-    self.opaque = NO;
-    self.layer.contentsScale = [UIScreen mainScreen].scale;
-
-    self.animationTiming = [CAMediaTimingFunction functionWithName:kCAMediaTimingFunctionDefault];
-    self.progressTintColor = [UIColor blackColor];
-    self.trackTintColor = [UIColor clearColor];
-    self.outlineTintColor = nil;
-    self.outlineWidth = .0;
-    self.fillRadius = 0.25f;
-    self.drawFullTrack = NO;
-    self.animationDuration = 0.25f;
-    self.startAngle = - M_PI_2;
-    self.gap = .1;
-    [self setMax:1.0f animated:NO];
-    [self setCurrent:0.0f animated:NO];
-    [self setStep:0.0f];
-    [self setConcentricStep:.0];
-}
-
-- (void)startAnimating
-{
-    CABasicAnimation *animation = [CABasicAnimation animationWithKeyPath:@"startAngle"];
-    animation.duration = 1;
-    
-    animation.fromValue = [NSNumber numberWithFloat:0];
-    animation.toValue = [NSNumber numberWithFloat:2 * M_PI];
-    animation.repeatCount = INFINITY;
-    [self.layer addAnimation:animation forKey:@"startAngleAnimation"];
-}
-
-- (void)stopAnimating
-{
-    [self.layer removeAllAnimations];
-}
-
-- (void)setProgressTintColor:(UIColor *)progressTintColor
-{
-    if (![self.progressTintColor isEqual:progressTintColor])
-    {
-        HKCircularProgressLayer *layer = (HKCircularProgressLayer *)self.layer;
-        layer.progressTintColor = progressTintColor;
-        [layer setNeedsDisplay];
-    }
-}
-
-- (void)setTrackTintColor:(UIColor *)trackTintColor
-{
-    if (![self.trackTintColor isEqual:trackTintColor])
-    {
-        HKCircularProgressLayer *layer = (HKCircularProgressLayer *)self.layer;
-        layer.trackTintColor = trackTintColor;
-        [layer setNeedsDisplay];
-    }
-}
-
-- (void)setOutlineTintColor:(UIColor *)outlineTintColor
-{
-    if (![self.outlineTintColor isEqual:outlineTintColor])
-    {
-        HKCircularProgressLayer *layer = (HKCircularProgressLayer *)self.layer;
-        layer.outlineTintColor = outlineTintColor;
-        [layer setNeedsDisplay];
-    }
-}
-
-- (void)setOutlineWidth:(CGFloat)outlineWidth
-{
-    if (self.outlineWidth != outlineWidth)
-    {
-        HKCircularProgressLayer *layer = (HKCircularProgressLayer *)self.layer;
-        layer.outlineWidth = outlineWidth;
-        [layer setNeedsDisplay];
-    }
-}
-
-- (void)setAlwaysDrawOutline:(BOOL)alwaysDrawOutline
-{
-    if (self.alwaysDrawOutline != alwaysDrawOutline)
-    {
-        HKCircularProgressLayer *layer = (HKCircularProgressLayer *)self.layer;
-        layer.alwaysDrawOutline = alwaysDrawOutline;
-        [layer setNeedsDisplay];
-    }
-}
-
-- (void)setFillRadius:(CGFloat)fillRadius
-             animated:(BOOL)animated
-{
-    if (self.fillRadius == fillRadius)
-    {
-        return;
-    }
-
-    fillRadius = MIN(MAX(0.0f, fillRadius), 1.0f);
-
-    HKCircularProgressLayer *layer = (HKCircularProgressLayer *)self.layer;
-    if (animated && self.animationDuration > 0.0f)
-    {
-        CABasicAnimation *animation = [CABasicAnimation animationWithKeyPath:@"fillRadius"];
-        animation.duration = self.animationDuration;
-        animation.fromValue = [NSNumber numberWithFloat:self.fillRadius];
-        animation.toValue = [NSNumber numberWithFloat:fillRadius];
-        animation.timingFunction = self.animationTiming;
-        animation.delegate = self;
-        [self.layer addAnimation:animation forKey:@"fillRadiusAnimation"];
-    }
-
-    layer.fillRadius = fillRadius;
-    [layer setNeedsDisplay];
-}
-
-- (void)setFillRadius:(CGFloat)fillRadius
-{
-    [self setFillRadius:fillRadius animated:NO];
-}
-
-- (void)setFillRadiusPx:(CGFloat)fillRadiusPx
-               animated:(BOOL)animated
-{
-    if (self.fillRadiusPx == fillRadiusPx)
-    {
-        return;
-    }
-
-    fillRadiusPx = MAX(0.0f, fillRadiusPx);
-
-    HKCircularProgressLayer *layer = (HKCircularProgressLayer *)self.layer;
-    if (animated && self.animationDuration > 0.0f)
-    {
-        CABasicAnimation *animation = [CABasicAnimation animationWithKeyPath:@"fillRadiusPx"];
-        animation.duration = self.animationDuration;
-        animation.fromValue = @(self.fillRadiusPx);
-        animation.toValue = @(fillRadiusPx);
-        animation.delegate = self;
-        animation.timingFunction = self.animationTiming;
-        [self.layer addAnimation:animation forKey:@"fillRadiusPxAnimation"];
-    }
-
-    layer.fillRadiusPx = fillRadiusPx;
-    [layer setNeedsDisplay];
-}
-
-- (void)setFillRadiusPx:(CGFloat)fillRadiusPx
-{
-    [self setFillRadiusPx:fillRadiusPx animated:NO];
-}
-
-- (void)setCurrent:(CGFloat)current
-          animated:(BOOL)animated
-{
-    if (current == self.current)
-    {
-        return;
-    }
-
-    current = MIN(MAX(0.0f, current), self.max);
-
-    HKCircularProgressLayer *layer = (HKCircularProgressLayer *)self.layer;
-    if (animated && self.animationDuration > 0.0f)
-    {
-        CABasicAnimation *animation = [CABasicAnimation animationWithKeyPath:@"current"];
-        animation.duration = self.animationDuration;
-        animation.fromValue = @(self.current);
-        animation.toValue = @(current);
-        animation.timingFunction = self.animationTiming;
-        [self.layer addAnimation:animation forKey:@"currentAnimation"];
+        if ([layer isKindOfClass:[HKCircularProgressLayer class]])
+        {
+            HKCircularProgressLayer *other = layer;
+            self.progressTintColor = other.progressTintColor;
+            self.trackTintColor = other.trackTintColor;
+            self.outlineTintColor = other.outlineTintColor;
+            self.outlineWidth = other.outlineWidth;
+            self.alwaysDrawOutline = other.alwaysDrawOutline;
+            self.animationDuration = other.animationDuration;
+            self.fillRadius = other.fillRadius;
+            self.drawFullTrack = other.drawFullTrack;
+            self.startAngle = other.startAngle;
+            self.endPoint = other.endPoint;
+            
+            self.concentricStep = other.concentricStep;
+            self.concentricGap = other.concentricGap;
+            self.concentricProgressionType = other.concentricProgressionType;
+            self.step = other.step;
+            self.current = other.current;
+            self.max = other.max;
+            self.gap = other.gap;
+        }
     }
     
-    layer.current = current;
-    [layer setNeedsDisplay];
+    return self;
 }
 
-- (void)setCurrent:(CGFloat)current
++ (id)layer
 {
-    [self setCurrent:current animated:YES];
-}
-
-- (void)setStartAngle:(CGFloat)startAngle
-{
-    if (startAngle != self.startAngle)
-    {
-        HKCircularProgressLayer *layer = (HKCircularProgressLayer *)self.layer;
-        layer.startAngle = startAngle;
-        [layer setNeedsDisplay];
-    }
-}
-
-- (void)setDrawFullTrack:(BOOL)drawFullTrack
-{
-    if (drawFullTrack != self.drawFullTrack)
-    {
-        HKCircularProgressLayer *layer = (HKCircularProgressLayer *)self.layer;
-        layer.drawFullTrack = drawFullTrack;
-        [layer setNeedsDisplay];
-    }
-}
-
-- (void)setEndPoint:(id<HKCircularProgressEndPointDrawer>)endPoint
-{
-    if (endPoint != self.endPoint)
-    {
-        HKCircularProgressLayer *layer = (HKCircularProgressLayer *)self.layer;
-        layer.endPoint = endPoint;
-        [layer setNeedsDisplay];
-    }
-}
-
-- (void)setGap:(CGFloat)gap
-{
-    if (gap != self.gap)
-    {
-        HKCircularProgressLayer *layer = (HKCircularProgressLayer *)self.layer;
-        layer.gap = gap;
-        [layer setNeedsDisplay];
-    }
-}
-
-- (void)setConcentricStep:(CGFloat)concentricStep
-{
-    if (concentricStep != self.concentricStep)
-    {
-        HKCircularProgressLayer *layer = (HKCircularProgressLayer *)self.layer;
-        layer.concentricStep = concentricStep;
-        [layer setNeedsDisplay];
-    }
-}
-
-- (void)setConcentricGap:(CGFloat)concentricGap
-{
-    if (concentricGap != self.concentricGap)
-    {
-        HKCircularProgressLayer *layer = (HKCircularProgressLayer *)self.layer;
-        layer.concentricGap = concentricGap;
-        [layer setNeedsDisplay];
-    }
-}
-
-- (void)setConcentricProgressionType:(HKConcentricProgressionType)concentricProgressionType
-{
-    if (concentricProgressionType != self.concentricProgressionType)
-    {
-        HKCircularProgressLayer *layer = (HKCircularProgressLayer *)self.layer;
-        layer.concentricProgressionType = concentricProgressionType;
-        [layer setNeedsDisplay];
-    }
-}
-
-- (void)setStep:(CGFloat)step
-{
-    if (step != self.step)
-    {
-        HKCircularProgressLayer *layer = (HKCircularProgressLayer *)self.layer;
-        layer.step = step;
-        [layer setNeedsDisplay];
-    }
-}
-
-- (void)setMax:(CGFloat)max
-      animated:(BOOL)animated
-{
-    if (max == self.max)
-    {
-        return;
-    }
-
-    HKCircularProgressLayer *layer = (HKCircularProgressLayer *)self.layer;
-    if (animated && self.animationDuration > 0.0f)
-    {
-        CABasicAnimation *animation = [CABasicAnimation animationWithKeyPath:@"current"];
-        animation.duration = self.animationDuration;
-        animation.fromValue = @(layer.max);
-        animation.toValue = @(max);
-        animation.timingFunction = self.animationTiming;
-        [self.layer addAnimation:animation forKey:@"currentAnimation"];
-    }
-
-    layer.max = max;
-    [layer setNeedsDisplay];
-}
-
-- (void)setMax:(CGFloat)max
-{
-    [self setMax:max animated:YES];
-}
-
-- (UIColor *)progressTintColor
-{
-    HKCircularProgressLayer *layer = (HKCircularProgressLayer *)self.layer;
-
-    return layer.progressTintColor;
-}
-
-- (UIColor *)trackTintColor
-{
-    HKCircularProgressLayer *layer = (HKCircularProgressLayer *)self.layer;
-
-    return layer.trackTintColor;
-}
-
-- (UIColor *)outlineTintColor
-{
-    HKCircularProgressLayer *layer = (HKCircularProgressLayer *)self.layer;
-
-    return layer.outlineTintColor;
-}
-
-- (BOOL)alwaysDrawOutline
-{
-    HKCircularProgressLayer *layer = (HKCircularProgressLayer *)self.layer;
-
-    return layer.alwaysDrawOutline;
-}
-
-- (CGFloat)outlineWidth
-{
-    HKCircularProgressLayer *layer = (HKCircularProgressLayer *)self.layer;
-
-    return layer.outlineWidth;
-}
-
-- (CGFloat)fillRadius
-{
-    HKCircularProgressLayer *layer = (HKCircularProgressLayer *)self.layer;
-
-    return layer.fillRadius;
-}
-
-- (CGFloat)fillRadiusPx
-{
-    HKCircularProgressLayer *layer = (HKCircularProgressLayer *)self.layer;
-
-    return layer.fillRadiusPx;
-}
-
-- (CGFloat)startAngle
-{
-    HKCircularProgressLayer *layer = (HKCircularProgressLayer *)self.layer;
-
-    return layer.startAngle;
-}
-
-- (BOOL)drawFullTrack
-{
-    HKCircularProgressLayer *layer = (HKCircularProgressLayer *)self.layer;
-
-    return layer.drawFullTrack;
+    HKCircularProgressLayer *result = [[HKCircularProgressLayer alloc] init];
+    
+    return result;
 }
 
 - (id<HKCircularProgressEndPointDrawer>)endPoint
 {
-    HKCircularProgressLayer *layer = (HKCircularProgressLayer *)self.layer;
-
-    return layer.endPoint;
-}
-
-- (CGFloat)gap
-{
-    HKCircularProgressLayer *layer = (HKCircularProgressLayer *)self.layer;
-
-    return layer.gap;
-}
-
-- (CGFloat)concentricStep
-{
-    HKCircularProgressLayer *layer = (HKCircularProgressLayer *)self.layer;
-
-    return layer.concentricStep;
-}
-
-- (CGFloat)concentricGap
-{
-    HKCircularProgressLayer *layer = (HKCircularProgressLayer *)self.layer;
-
-    return layer.concentricGap;
-}
-
-- (HKConcentricProgressionType)concentricProgressionType
-{
-    HKCircularProgressLayer *layer = (HKCircularProgressLayer *)self.layer;
-
-    return layer.concentricProgressionType;
-}
-
-- (CGFloat)step
-{
-    HKCircularProgressLayer *layer = (HKCircularProgressLayer *)self.layer;
-
-    return layer.step;
-}
-
-- (CGFloat)max
-{
-    HKCircularProgressLayer *layer = (HKCircularProgressLayer *)self.layer;
-
-    return layer.max;
-}
-
-- (CGFloat)current
-{
-    HKCircularProgressLayer *layer = (HKCircularProgressLayer *)self.layer;
+    if (!_endPoint)
+        _endPoint = [[HKCircularProgressEndPointFlat alloc] init];
     
-    return layer.current;
+    return _endPoint;
+}
+
+- (void)setFillRadiusPx:(CGFloat)fillRadiusPx
+{
+    CGFloat radius = MIN(self.bounds.size.width, self.bounds.size.height) * .5f - (2. * self.outlineWidth);
+    [self setFillRadius:fillRadiusPx / radius];
+}
+
+- (CGFloat)fillRadiusPx
+{
+    CGFloat radius = MIN(self.bounds.size.width, self.bounds.size.height) * .5f - (2. * self.outlineWidth);
+    
+    return radius * self.fillRadius;
+}
+
++ (BOOL)needsDisplayForKey:(NSString *)key
+{
+    if ([key isEqualToString:@"progressTintColor"]
+        || [key isEqualToString:@"trackTintColor"]
+        || [key isEqualToString:@"outlineTintColor"]
+        || [key isEqualToString:@"outlineWidth"]
+        || [key isEqualToString:@"alwaysDrawOutline"]
+        || [key isEqualToString:@"fillRadius"]
+        || [key isEqualToString:@"fillRadiusPx"]
+        || [key isEqualToString:@"drawFullTrack"]
+        || [key isEqualToString:@"startAngle"]
+        || [key isEqualToString:@"endPoint"]
+        || [key isEqualToString:@"gap"]
+        || [key isEqualToString:@"concentricStep"]
+        || [key isEqualToString:@"step"]
+        || [key isEqualToString:@"current"]
+        || [key isEqualToString:@"max"])
+    {
+        return YES;
+    }
+    
+    return [super needsDisplayForKey:key];
+}
+
+- (void)drawTrackInContext:(CGContextRef)ctx
+                withCenter:(CGPoint)center
+                 andRadius:(CGFloat)radius
+                fillRadius:(CGFloat)fillRadius
+{
+    if (self.drawFullTrack)
+    {
+        CGRect circleRect = CGRectMake(center.x - radius, center.y - radius, radius * 2.0, radius * 2.0);
+        CGContextAddEllipseInRect(ctx, circleRect);
+    }
+    else
+    {
+        CGContextAddArc(ctx, center.x, center.y, radius, 0, k2Pi, 0);
+        CGFloat innerRadius = radius * (1.f - fillRadius);
+        
+        CGFloat x = center.x + innerRadius;
+        CGFloat y = center.y;
+        CGContextAddLineToPoint(ctx, x, y);
+        CGContextAddArc(ctx, center.x, center.y, innerRadius, k2Pi, 0, 1);
+        CGContextClosePath(ctx);
+    }
+    
+    CGContextSetFillColorWithColor(ctx, self.trackTintColor.CGColor);
+    CGContextFillPath(ctx);
+}
+
+- (void)drawArcInContext:(CGContextRef)ctx
+              withCenter:(CGPoint)center
+               andRadius:(CGFloat)radius
+          andInnerRadius:(CGFloat)innerRadius
+                 between:(CGFloat)startAngle
+                     and:(CGFloat)destAngle
+                    fill:(BOOL)fill
+{
+    startAngle = [self.endPoint startPointAngleWithCenter:center
+                                                            radius:radius
+                                                       innerRadius:innerRadius
+                                                             angle:startAngle];
+    
+    destAngle = [self.endPoint endPointAngleWithCenter:center
+                                                radius:radius
+                                           innerRadius:innerRadius
+                                                 angle:destAngle];
+    
+    CGContextAddArc(ctx, center.x, center.y, radius, startAngle, destAngle, 0);
+    
+    [self.endPoint drawEndPointInContext:ctx
+                              withCenter:center
+                               andRadius:radius
+                          andInnerRadius:innerRadius
+                                 atAngle:destAngle];
+    
+    CGContextAddArc(ctx, center.x, center.y, innerRadius, destAngle, startAngle, 1);
+    
+    [self.endPoint drawStartPointInContext:ctx
+                                withCenter:center
+                                 andRadius:innerRadius
+                            andInnerRadius:radius
+                                   atAngle:startAngle];
+    
+    CGPathDrawingMode drawingMode = kCGPathFill;
+    if (self.alwaysDrawOutline || !fill)
+    {
+        if (!fill)
+            drawingMode = kCGPathStroke;
+        else
+            drawingMode = kCGPathFillStroke;
+    }
+    
+    CGContextClosePath(ctx);
+    CGContextDrawPath(ctx, drawingMode);
+}
+
+- (void)drawProgressInContext:(CGContextRef)ctx
+                     atCenter:(CGPoint)center
+                   withRadius:(CGFloat)radius
+                      current:(CGFloat)current
+                          max:(CGFloat)max
+                   fillRadius:(CGFloat)fillRadius
+{
+    CGContextSetFillColorWithColor(ctx, self.progressTintColor.CGColor);
+    CGContextSetStrokeColorWithColor(ctx, self.outlineTintColor
+                                     ? self.outlineTintColor.CGColor
+                                     : self.progressTintColor.CGColor);
+    CGContextSetLineWidth(ctx, self.outlineWidth);
+    CGFloat destAngle = .0f;
+    CGFloat innerRadius = radius * (1.f - fillRadius);
+    
+    if (self.step == .0f)
+    {
+        CGFloat progress;
+        if (max > 0)
+            progress = current / max;
+        else
+            progress = 0;
+        
+        destAngle = self.startAngle + progress * k2Pi;
+        
+        [self drawArcInContext:ctx
+                    withCenter:center
+                     andRadius:radius
+                andInnerRadius:innerRadius
+                       between:self.startAngle
+                           and:destAngle
+                          fill:YES];
+        if (self.outlineWidth > .0 && current < max)
+        {
+            [self drawArcInContext:ctx
+                        withCenter:center
+                         andRadius:radius
+                    andInnerRadius:innerRadius
+                           between:destAngle
+                               and:self.startAngle
+                              fill:NO];
+        }
+    }
+    else
+    {
+        CGFloat gap = (self.step * self.gap) / max;
+        CGFloat gapAngle = gap * k2Pi;
+        CGFloat incr = (self.step - (self.step * self.gap)) / max;
+        CGFloat stepAngle = incr * k2Pi;
+        CGFloat startAngle = self.startAngle + (gapAngle * .5f);
+        CGFloat f = .0;
+        for (; f < current; f += self.step)
+        {
+            destAngle = startAngle + stepAngle;
+            [self drawArcInContext:ctx
+                        withCenter:center
+                         andRadius:radius
+                    andInnerRadius:innerRadius
+                           between:startAngle
+                               and:destAngle
+                              fill:YES];
+            startAngle += stepAngle + gapAngle;
+        }
+        
+        if (self.outlineWidth > .0 && max)
+        {
+            for (; f <= max; f += self.step)
+            {
+                destAngle = startAngle + stepAngle;
+                [self drawArcInContext:ctx
+                            withCenter:center
+                             andRadius:radius
+                        andInnerRadius:innerRadius
+                               between:startAngle
+                                   and:destAngle
+                                  fill:NO];
+                startAngle += stepAngle + gapAngle;
+            }
+        }
+    }
+}
+
+- (void)drawConcentricProgressionInContext:(CGContextRef)ctx
+                                  atCenter:(CGPoint)center
+                                withRadius:(CGFloat)radiusPx
+{
+    NSUInteger nbCirclesNeeded = ceil(self.max / self.concentricStep);
+    CGFloat deltaRadiusPx = (radiusPx / nbCirclesNeeded);
+    CGFloat concentricGapPx = deltaRadiusPx * self.concentricGap;
+    
+    HKConcentricProgressionFunction changeRadius = nil;
+    if (self.concentricProgressionType == HKConcentricProgressionTypeConcentric)
+    {
+        changeRadius = ^CGFloat (CGFloat oldRadius, CGFloat deltaRadius){
+            return oldRadius - deltaRadius;
+        };
+    }
+    else
+    {
+        changeRadius = ^CGFloat (CGFloat oldRadius, CGFloat deltaRadius){
+            return oldRadius + deltaRadius;
+        };
+        radiusPx = deltaRadiusPx;
+    }
+    [self drawTrackInContext:ctx
+                  withCenter:center
+                   andRadius:radiusPx
+                  fillRadius:1];
+    
+    CGFloat current = self.current;
+    // First we draw the circles that are already full.
+    for (; current > self.concentricStep; current -= self.concentricStep)
+    {
+        [self drawProgressInContext:ctx
+                           atCenter:center
+                         withRadius:radiusPx
+                            current:self.concentricStep
+                                max:self.concentricStep
+                         fillRadius:(deltaRadiusPx - concentricGapPx) / radiusPx];
+        
+        radiusPx = changeRadius(radiusPx, deltaRadiusPx);
+    }
+    // Then we draw the remaining circle
+    [self drawProgressInContext:ctx
+                       atCenter:center
+                     withRadius:radiusPx
+                        current:current
+                            max:self.concentricStep
+                     fillRadius:(deltaRadiusPx - concentricGapPx) / radiusPx];
+    
+}
+
+- (void)drawInContext:(CGContextRef)ctx
+{
+    CGFloat radius = MIN(self.bounds.size.width, self.bounds.size.height) * .5f - (2. * self.outlineWidth);
+    CGPoint center = CGPointMake(self.bounds.size.width * .5f, self.bounds.size.height * .5f);
+    
+    if (self.concentricStep == .0)
+    {
+        [self drawTrackInContext:ctx
+                      withCenter:center
+                       andRadius:radius
+                      fillRadius:self.fillRadius];
+        [self drawProgressInContext:ctx
+                           atCenter:center
+                         withRadius:radius
+                            current:self.current
+                                max:self.max
+                         fillRadius:self.fillRadius];
+    }
+    else
+    {
+        [self drawConcentricProgressionInContext:ctx
+                                        atCenter:center
+                                      withRadius:radius];
+    }
 }
 
 @end
